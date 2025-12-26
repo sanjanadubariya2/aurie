@@ -77,7 +77,7 @@ export default function LoginPage({ onLoginSuccess }) {
         </form>
 
         <p className="text-center text-gray-600 text-sm mt-6">
-          Demo: Use admin@aurie.com / admin123
+          📌 Demo: admin@test.com / Admin@123
         </p>
       </div>
     </div>

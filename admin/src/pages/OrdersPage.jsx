@@ -25,15 +25,34 @@ export default function OrdersPage() {
     // Listen for new orders
     socket.on('newOrder', (newOrder) => {
       console.log('✅ New order received via socket:', newOrder);
-      setOrders(prevOrders => [newOrder, ...prevOrders]);
+      const normalizedOrder = {
+        ...newOrder,
+        _id: newOrder.id || newOrder._id,
+        createdAt: newOrder.createdAt?._seconds 
+          ? new Date(newOrder.createdAt._seconds * 1000) 
+          : new Date(newOrder.createdAt || Date.now())
+      };
+      setOrders(prevOrders => [normalizedOrder, ...prevOrders]);
     });
 
     // Listen for order updates
     socket.on('orderUpdated', (updatedOrder) => {
       console.log('✅ Order updated via socket:', updatedOrder);
+      const normalizedOrder = {
+        ...updatedOrder,
+        _id: updatedOrder.id || updatedOrder._id,
+        createdAt: updatedOrder.createdAt?._seconds 
+          ? new Date(updatedOrder.createdAt._seconds * 1000) 
+          : new Date(updatedOrder.createdAt || Date.now()),
+        updatedAt: updatedOrder.updatedAt?._seconds 
+          ? new Date(updatedOrder.updatedAt._seconds * 1000) 
+          : new Date(updatedOrder.updatedAt || Date.now())
+      };
       setOrders(prevOrders =>
         prevOrders.map(order =>
-          order._id === updatedOrder._id ? updatedOrder : order
+          (order.id === normalizedOrder.id || order._id === normalizedOrder._id) 
+            ? normalizedOrder 
+            : order
         )
       );
     });
@@ -69,8 +88,20 @@ export default function OrdersPage() {
     try {
       setLoading(true);
       const response = await getAllOrders();
-      setOrders(response.data);
+      // Normalize orders - convert Firestore timestamps to Date objects
+      const normalizedOrders = (response.data || response).map(order => ({
+        ...order,
+        _id: order.id || order._id, // Ensure _id is set
+        createdAt: order.createdAt?._seconds 
+          ? new Date(order.createdAt._seconds * 1000) 
+          : new Date(order.createdAt || Date.now()),
+        updatedAt: order.updatedAt?._seconds 
+          ? new Date(order.updatedAt._seconds * 1000) 
+          : new Date(order.updatedAt || Date.now())
+      }));
+      setOrders(normalizedOrders);
       setError('');
+      console.log('✅ Orders loaded:', normalizedOrders.length);
     } catch (err) {
       console.error('Error fetching orders:', err);
       setError('Failed to load orders. Please try again.');
@@ -81,7 +112,7 @@ export default function OrdersPage() {
 
   const handleStatusUpdate = (orderId, newStatus) => {
     setOrders(orders.map(order =>
-      order._id === orderId ? { ...order, status: newStatus } : order
+      (order.id === orderId || order._id === orderId) ? { ...order, status: newStatus } : order
     ));
   };
 
@@ -119,50 +150,50 @@ export default function OrdersPage() {
   const stats = getStats();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <p className="text-gray-600 text-sm">Total Orders</p>
-          <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="bg-white p-3 sm:p-4 rounded-lg shadow">
+          <p className="text-gray-600 text-xs sm:text-sm">Total Orders</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{stats.total}</p>
         </div>
-        <div className="bg-yellow-50 p-4 rounded-lg shadow border-l-4 border-yellow-500">
-          <p className="text-gray-600 text-sm">Pending</p>
-          <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
+        <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg shadow border-l-4 border-yellow-500">
+          <p className="text-gray-600 text-xs sm:text-sm">Pending</p>
+          <p className="text-2xl sm:text-3xl font-bold text-yellow-600 mt-1">{stats.pending}</p>
         </div>
-        <div className="bg-blue-50 p-4 rounded-lg shadow border-l-4 border-blue-500">
-          <p className="text-gray-600 text-sm">Confirmed</p>
-          <p className="text-3xl font-bold text-blue-600">{stats.confirmed}</p>
+        <div className="bg-blue-50 p-3 sm:p-4 rounded-lg shadow border-l-4 border-blue-500">
+          <p className="text-gray-600 text-xs sm:text-sm">Confirmed</p>
+          <p className="text-2xl sm:text-3xl font-bold text-blue-600 mt-1">{stats.confirmed}</p>
         </div>
-        <div className="bg-purple-50 p-4 rounded-lg shadow border-l-4 border-purple-500">
-          <p className="text-gray-600 text-sm">Shipped</p>
-          <p className="text-3xl font-bold text-purple-600">{stats.shipped}</p>
+        <div className="bg-purple-50 p-3 sm:p-4 rounded-lg shadow border-l-4 border-purple-500">
+          <p className="text-gray-600 text-xs sm:text-sm">Shipped</p>
+          <p className="text-2xl sm:text-3xl font-bold text-purple-600 mt-1">{stats.shipped}</p>
         </div>
-        <div className="bg-green-50 p-4 rounded-lg shadow border-l-4 border-green-500">
-          <p className="text-gray-600 text-sm">Delivered</p>
-          <p className="text-3xl font-bold text-green-600">{stats.delivered}</p>
+        <div className="bg-green-50 p-3 sm:p-4 rounded-lg shadow border-l-4 border-green-500">
+          <p className="text-gray-600 text-xs sm:text-sm">Delivered</p>
+          <p className="text-2xl sm:text-3xl font-bold text-green-600 mt-1">{stats.delivered}</p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Search</label>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by order ID, customer name, email, or phone..."
-              className="w-full border border-gray-300 rounded px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Search..."
+              className="w-full border border-gray-300 rounded px-2 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Status</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Filter by Status</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full border border-gray-300 rounded px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded px-2 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {statusOptions.map(status => (
                 <option key={status} value={status}>
@@ -174,9 +205,9 @@ export default function OrdersPage() {
           <div className="flex items-end">
             <button
               onClick={fetchOrders}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded transition"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded transition text-xs sm:text-sm"
             >
-              Refresh Orders
+              Refresh
             </button>
           </div>
         </div>
@@ -204,10 +235,10 @@ export default function OrdersPage() {
       )}
 
       {!loading && filteredOrders.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {filteredOrders.map(order => (
             <OrderCard
-              key={order._id}
+              key={order.id || order._id}
               order={order}
               onStatusUpdate={handleStatusUpdate}
             />

@@ -23,17 +23,31 @@ export const sendSMS = async (phoneNumber, message) => {
       return { success: true, demo: true, message: "SMS queued (demo mode)" };
     }
 
+    // Format phone number - add +91 if Indian number without country code
+    let formattedNumber = phoneNumber;
+    if (!phoneNumber.startsWith("+")) {
+      if (phoneNumber.length === 10) {
+        formattedNumber = "+91" + phoneNumber; // India country code
+      } else {
+        formattedNumber = "+" + phoneNumber;
+      }
+    }
+
+    console.log(`📱 [SMS] Sending to ${formattedNumber} (original: ${phoneNumber})`);
+
     const result = await client.messages.create({
       body: message,
       from: fromPhone,
-      to: phoneNumber,
+      to: formattedNumber,
     });
 
     console.log("✅ SMS sent:", result.sid);
     return { success: true, demo: false, sid: result.sid };
   } catch (err) {
     console.error("❌ SMS error:", err.message);
-    return { success: true, demo: true, message: "SMS queued (demo mode)" };
+    console.error("   Error code:", err.code);
+    console.error("   Full error:", err);
+    return { success: false, error: err.message };
   }
 };
 

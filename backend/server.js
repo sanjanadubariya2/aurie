@@ -3,12 +3,16 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import { initializeFirebase } from "./config/firebase.js";
+import { initializeFirebase, isFirebaseActive } from "./config/firebase.js";
+import { createServer } from "http";
+import { Server as SocketServer } from "socket.io";
+import { setIO } from "./utils/socket.js";
 
 // Routes
 import authRoutes from "./routes/authRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, ".env") });
@@ -17,6 +21,37 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 initializeFirebase();
 
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Socket.io
+const io = new SocketServer(httpServer, {
+  cors: {
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175",
+      "http://localhost:3000",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5174",
+      "http://127.0.0.1:5175",
+      "http://127.0.0.1:3000"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+// Make io available to routes
+setIO(io);
+
+// Socket.io event handlers
+io.on("connection", (socket) => {
+  console.log(`✅ Client connected: ${socket.id}`);
+
+  socket.on("disconnect", () => {
+    console.log(`❌ Client disconnected: ${socket.id}`);
+  });
+});
 
 // Enhanced CORS configuration
 const corsOptions = {
@@ -75,12 +110,19 @@ app.get("/api/health", (req, res) => {
 
 // Auth routes
 app.use("/api/auth", authRoutes);
+console.log("✅ Auth routes registered at /api/auth");
+
+// Admin routes
+app.use("/api/admin", adminRoutes);
+console.log("✅ Admin routes registered at /api/admin");
 
 // Product routes
 app.use("/api/products", productRoutes);
+console.log("✅ Product routes registered at /api/products");
 
 // Order routes
 app.use("/api/orders", orderRoutes);
+console.log("✅ Order routes registered at /api/orders");
 
 // 404 handler
 app.use((req, res) => {
@@ -97,10 +139,27 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`\n✅ Aurie Candles Backend`);
-  console.log(`📦 Server running on http://localhost:${PORT}`);
-  console.log(`🔗 API: http://localhost:${PORT}/api`);
-  console.log(`💾 Database: Firestore (with Mock DB fallback)\n`);
+httpServer.listen(PORT, () => {
+  const dbStatus = isFirebaseActive() 
+    ? "✅ Firestore" 
+    : "⚠️  MockDB (Firestore not available)";
+  
+  console.log(`\n╔════════════════════════════════════════╗`);
+  console.log(`║  ✅ Aurie Candles Backend              ║`);
+  console.log(`║  📦 http://localhost:${PORT}`.padEnd(41) + "║");
+  console.log(`║  📊 Database: ${dbStatus}`.padEnd(41) + "║");
+  console.log(`║  🔌 Socket.io: ✅ Enabled`.padEnd(41) + "║");
+  console.log(`╚════════════════════════════════════════╝\n`);
+  
+  if (!isFirebaseActive()) {
+    console.log(`⚠️  NOTE: Firestore API is not enabled.`);
+    console.log(`   Data will NOT persist across server restarts.`);
+    console.log(`   To enable Firestore:`);
+    console.log(`   1. Go to: https://console.cloud.google.com/`);
+    console.log(`   2. Enable "Cloud Firestore API"`);
+    console.log(`   3. Create a Firestore database`);
+    console.log(`   4. Restart the backend`);
+    console.log(`   📖 See FIRESTORE_SETUP_GUIDE.md for detailed steps\n`);
+  }
 });
 

@@ -138,3 +138,77 @@ export const handlePaymentFailure = async (req, res) => {
   }
 };
 
+// Create UPI Order (Razorpay supports UPI natively)
+export const createUPIOrder = async (req, res) => {
+  try {
+    if (!razorpay) {
+      return res.status(503).json({ message: "Payment service not configured" });
+    }
+
+    const { amount, description, customerId, upiId } = req.body;
+
+    if (!amount) {
+      return res.status(400).json({ message: "Amount is required" });
+    }
+
+    const options = {
+      amount: Math.round(amount * 100), // Convert to paise
+      currency: "INR",
+      receipt: "upi_receipt_" + Date.now(),
+      description: description || "Aurie Candles Purchase via UPI",
+      notes: {
+        customerId: customerId || "guest",
+        paymentMethod: "upi"
+      }
+    };
+
+    const razorpayOrder = await razorpay.orders.create(options);
+
+    res.json({
+      id: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      key: process.env.RAZORPAY_KEY,
+      paymentMethod: "upi"
+    });
+  } catch (err) {
+    console.error("UPI Order Creation Error:", err);
+    res.status(500).json({ message: "Failed to create UPI order", error: err.message });
+  }
+};
+
+// Get Payment Details
+export const getPaymentDetails = async (req, res) => {
+  try {
+    if (!razorpay) {
+      return res.status(503).json({ message: "Payment service not configured" });
+    }
+
+    const { paymentId } = req.params;
+
+    if (!paymentId) {
+      return res.status(400).json({ message: "Payment ID is required" });
+    }
+
+    const payment = await razorpay.payments.fetch(paymentId);
+
+    res.json({
+      success: true,
+      paymentId: payment.id,
+      orderId: payment.order_id,
+      amount: payment.amount,
+      currency: payment.currency,
+      status: payment.status,
+      method: payment.method,
+      email: payment.email,
+      contact: payment.contact,
+      description: payment.description,
+      notes: payment.notes,
+      vpa: payment.vpa // UPI ID for UPI payments
+    });
+  } catch (err) {
+    console.error("Get Payment Details Error:", err);
+    res.status(500).json({ message: "Failed to fetch payment details", error: err.message });
+  }
+};
+

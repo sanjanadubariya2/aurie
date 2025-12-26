@@ -1,6 +1,7 @@
 import express from "express";
 import { getDB } from "../config/firebase.js";
 import { getIO } from "../utils/socket.js";
+import { sendOrderPlacedNotificationToAdmin } from "../utils/sendEmail.js";
 
 const router = express.Router();
 
@@ -65,6 +66,18 @@ router.post("/place", async (req, res) => {
     };
 
     console.log("✅ Order saved to Firestore:", orderId);
+
+    // Send email notification to admin
+    try {
+      await sendOrderPlacedNotificationToAdmin({
+        id: orderId,
+        ...newOrder
+      });
+      console.log("✅ Admin notification email sent");
+    } catch (emailErr) {
+      console.warn("⚠️ Failed to send admin email:", emailErr.message);
+      // Don't fail the order placement if email fails
+    }
 
     // Emit socket event to admins
     const io = getIO();

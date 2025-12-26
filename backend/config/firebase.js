@@ -35,17 +35,51 @@ export const initializeFirebase = async () => {
         return db;
       }
 
+      console.log("🔥 Initializing Firebase Admin...");
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id,
         databaseURL: process.env.FIREBASE_DATABASE_URL || ""
       });
 
+      console.log("✅ Firebase Admin initialized for project:", serviceAccount.project_id);
       db = admin.firestore();
-      isFirebase = true;
-      console.log("✅ Firestore initialized successfully");
-      return db;
+      
+      // Configure Firestore settings
+      db.settings({
+        ignoreUndefinedProperties: true,
+        preferRest: false
+      });
+
+      console.log("🧪 Testing Firestore connectivity...");
+      
+      // Test write operation to verify Firestore is working
+      try {
+        const testDocRef = db.collection("_system").doc("_test_" + Date.now());
+        await testDocRef.set({ test: true, timestamp: new Date() });
+        console.log("✅ Firestore write test passed");
+        
+        // Clean up test document
+        await testDocRef.delete();
+        console.log("✅ Firestore delete test passed");
+        
+        console.log("✅ Firestore initialized successfully");
+        isFirebase = true;
+        return db;
+      } catch (testErr) {
+        console.error("❌ Firestore write test failed:", testErr.message);
+        console.warn("⚠️  Firestore is not accessible, using Mock DB as fallback");
+        console.log("Error details:", testErr.code, testErr.message);
+        
+        // Use MockDB as fallback
+        db = new MockDB();
+        isFirebase = false;
+        return db;
+      }
+
     } catch (parseErr) {
       console.warn("⚠️  Firebase credentials malformed, using Mock DB for development");
+      console.log("Parse error:", parseErr.message);
       db = new MockDB();
       isFirebase = false;
       return db;

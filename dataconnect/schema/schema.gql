@@ -1,0 +1,55 @@
+type User @table {
+  email: String!
+  passwordHash: String!
+  createdAt: Timestamp!
+  firstName: String
+  lastName: String
+  shippingAddress: String
+  billingAddress: String
+  phoneNumber: String
+}
+
+type Product @table {
+  name: String!
+  price: Float!
+  description: String!
+  scent: String!
+  size: String!
+  stockQuantity: Int!
+  createdAt: Timestamp!
+  imageUrl: String
+  fragranceNotes: String
+  burnTime: String
+}
+
+type Category @table {
+  name: String!
+  createdAt: Timestamp!
+  description: String
+  imageUrl: String
+}
+
+type Review @table {
+  user: User!
+  product: Product!
+  rating: Int!
+  comment: String!
+  createdAt: Timestamp!
+  imageUrls: [String]
+}
+
+type Order @table {
+  user: User!
+  orderDate: Timestamp!
+  totalAmount: Float!
+  status: String!
+  shippingAddressSnapshot: String
+  trackingNumber: String
+}
+
+type OrderItem @table {
+  order: Order!
+  product: Product!
+  quantity: Int!
+  priceAtTimeOfPurchase: Float!
+}
