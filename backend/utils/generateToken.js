@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
+import jwtConfig from "../config/jwt.js";
 
-export default function generateToken(id) {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+export default function generateToken(userId) {
+  return jwt.sign({ userId }, jwtConfig.JWT_SECRET, { expiresIn: jwtConfig.TOKEN_EXPIRY });
 }

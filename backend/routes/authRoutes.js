@@ -3,13 +3,13 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { getDB } from "../config/firebase.js";
 import { MockDB } from "../config/mockDb.js";
+import jwtConfig from "../config/jwt.js";
 import generateToken from "../utils/generateToken.js";
 import { generateOTP } from "../utils/generateOTP.js";
 import { sendOTPEmail } from "../utils/sendEmail.js";
-import { sendOTPSMS } from "../utils/sendSMS.js";
+import { sendSMS, sendOTPSMS } from "../utils/sendSMS.js";
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 // ============ HELPERS ============
 const getUserByEmail = async (email) => {
@@ -116,7 +116,7 @@ router.post("/signup", async (req, res) => {
       }
     }
 
-    const token = jwt.sign({ userId: userRef.id }, JWT_SECRET, { expiresIn: "7d" });
+    const token = generateToken(userRef.id);
 
     // Generate and send email OTP
     const emailOTP = generateOTP();
@@ -140,12 +140,21 @@ router.post("/signup", async (req, res) => {
     console.log("Email result:", emailResult);
 
     console.log(`✅ Signup successful for ${email}`);
-    res.json({
+    const response = {
       success: true,
       user: { id: userRef.id, name, email },
       token,
       msg: emailResult.success ? "Signup successful. Check email for OTP." : "Signup successful but email may not have been sent. Try resending.",
-    });
+      demo: emailResult?.demo,
+    };
+    
+    // Include OTP for demo mode
+    if (emailResult?.demo) {
+      response.demoOTP = emailOTP;
+      response.demoMsg = `[DEMO MODE] OTP: ${emailOTP}`;
+    }
+    
+    res.json(response);
   } catch (err) {
     console.error("❌ Signup error:", err.message);
     console.error("Stack:", err.stack);
@@ -181,7 +190,7 @@ router.post("/login", async (req, res) => {
     }
 
     console.log("✅ [Login] Password match, generating token");
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+    const token = generateToken(user.id);
 
     console.log("✅ [Login] Success for:", email);
     res.json({
@@ -208,7 +217,7 @@ router.get("/me", async (req, res) => {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ error: "No token" });
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtConfig.JWT_SECRET);
     const user = await getUserById(decoded.userId);
 
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -238,7 +247,7 @@ router.post("/update-profile", async (req, res) => {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ error: "No token" });
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtConfig.JWT_SECRET);
     const user = await getUserById(decoded.userId);
     
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -312,7 +321,7 @@ router.post("/send-email-otp", async (req, res) => {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ error: "No token" });
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtConfig.JWT_SECRET);
     const user = await getUserById(decoded.userId);
 
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -335,9 +344,15 @@ router.post("/send-email-otp", async (req, res) => {
       console.warn("⚠️  Failed to save OTP in DB, continuing anyway...");
     }
 
-    await sendOTPEmail(user.email, emailOTP);
+    const emailResult = await sendOTPEmail(user.email, emailOTP);
 
-    res.json({ success: true, msg: "OTP sent to email" });
+    // Include OTP in response for demo/test mode
+    const response = { success: true, msg: "OTP sent to email", demo: emailResult?.demo };
+    if (emailResult?.demo) {
+      response.demoOTP = emailOTP;
+      response.demoMsg = `[DEMO MODE] OTP: ${emailOTP}`;
+    }
+    res.json(response);
   } catch (err) {
     console.error("Send email OTP error:", err.message);
     res.status(500).json({ error: "Failed to send OTP" });
@@ -354,7 +369,7 @@ router.post("/verify-email-otp", async (req, res) => {
     if (!otp) return res.status(400).json({ error: "OTP required" });
 
     console.log("✅ [Verify Email] Token received, decoding...");
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtConfig.JWT_SECRET);
     console.log("✅ [Verify Email] User ID:", decoded.userId);
     
     const user = await getUserById(decoded.userId);
@@ -412,6 +427,21 @@ router.post("/verify-email-otp", async (req, res) => {
     try {
       await db.collection("users").doc(user.id).update({ emailVerified: true });
       console.log("✅ [Verify Email] Email marked as verified in DB");
+      
+      // Delete OTP after successful verification (security - prevent reuse)
+      try {
+        const otpSnapshot = await db.collection("otps")
+          .where("userId", "==", user.id)
+          .where("type", "==", "email")
+          .get();
+        
+        for (const doc of otpSnapshot.docs) {
+          await doc.ref.delete();
+        }
+        console.log("✅ [Verify Email] Old OTPs deleted (security cleanup)");
+      } catch (otpDeleteErr) {
+        console.warn("⚠️  Could not delete OTP:", otpDeleteErr.message);
+      }
     } catch (updateErr) {
       console.warn("⚠️  Could not update DB:", updateErr.message);
     }
@@ -438,7 +468,7 @@ router.post("/send-phone-otp", async (req, res) => {
     
     if (!phone) return res.status(400).json({ error: "Phone required" });
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtConfig.JWT_SECRET);
     console.log("📱 [Phone OTP Request] User ID:", decoded.userId);
     
     const user = await getUserById(decoded.userId);
@@ -489,7 +519,13 @@ router.post("/send-phone-otp", async (req, res) => {
       console.warn("⚠️  Failed to update user phone in DB");
     }
 
-    res.json({ success: true, msg: "OTP sent to phone", demo: smsResult.demo });
+    // Include OTP in response for demo/test mode
+    const response = { success: true, msg: "OTP sent to phone", demo: smsResult.demo };
+    if (smsResult.demo) {
+      response.demoOTP = phoneOTP;
+      response.demoMsg = `[DEMO MODE] OTP: ${phoneOTP}`;
+    }
+    res.json(response);
   } catch (err) {
     console.error("❌ [Phone OTP Error]", err.message);
     console.error("Stack:", err.stack);
@@ -507,7 +543,7 @@ router.post("/verify-phone-otp", async (req, res) => {
     if (!otp) return res.status(400).json({ error: "OTP required" });
 
     console.log("📱 [Verify Phone] Token received, decoding...");
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtConfig.JWT_SECRET);
     console.log("📱 [Verify Phone] User ID:", decoded.userId);
     
     const user = await getUserById(decoded.userId);
@@ -574,6 +610,21 @@ router.post("/verify-phone-otp", async (req, res) => {
         phoneVerificationTimestamp: new Date()
       });
       console.log("✅ [Verify Phone] Phone marked as verified in DB with number:", user.phone);
+      
+      // Delete OTP after successful verification (security - prevent reuse)
+      try {
+        const otpSnapshot = await db.collection("otps")
+          .where("userId", "==", user.id)
+          .where("type", "==", "phone")
+          .get();
+        
+        for (const doc of otpSnapshot.docs) {
+          await doc.ref.delete();
+        }
+        console.log("✅ [Verify Phone] Old OTPs deleted (security cleanup)");
+      } catch (otpDeleteErr) {
+        console.warn("⚠️  Could not delete OTP:", otpDeleteErr.message);
+      }
     } catch (updateErr) {
       console.warn("⚠️  Could not update DB:", updateErr.message);
     }
