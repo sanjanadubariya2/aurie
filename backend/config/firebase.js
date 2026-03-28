@@ -53,14 +53,29 @@ export const initializeFirebase = async () => {
 
       console.log("🧪 Testing Firestore connectivity...");
       
-      // Test write operation to verify Firestore is working
+      // Test write operation to verify Firestore is working (with 10 second timeout)
       try {
         const testDocRef = db.collection("_system").doc("_test_" + Date.now());
-        await testDocRef.set({ test: true, timestamp: new Date() });
+        
+        // Create a timeout promise
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Firestore test timeout")), 10000)
+        );
+        
+        // Race between the actual test and timeout
+        await Promise.race([
+          testDocRef.set({ test: true, timestamp: new Date() }),
+          timeoutPromise
+        ]);
+        
         console.log("✅ Firestore write test passed");
         
         // Clean up test document
-        await testDocRef.delete();
+        await Promise.race([
+          testDocRef.delete(),
+          timeoutPromise
+        ]);
+        
         console.log("✅ Firestore delete test passed");
         
         console.log("✅ Firestore initialized successfully");
