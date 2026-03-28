@@ -34,7 +34,8 @@ const io = new SocketServer(httpServer, {
       "http://127.0.0.1:5173",
       "http://127.0.0.1:5174",
       "http://127.0.0.1:5175",
-      "http://127.0.0.1:3000"
+      "http://127.0.0.1:3000",
+      process.env.FRONTEND_URL || "https://aurie-production.up.railway.app"
     ],
     methods: ["GET", "POST"],
     credentials: true
@@ -65,8 +66,10 @@ const corsOptions = {
       "http://127.0.0.1:5173",
       "http://127.0.0.1:5174",
       "http://127.0.0.1:5175",
-      "http://127.0.0.1:3000"
-    ];
+      "http://127.0.0.1:3000",
+      "https://aurie-production.up.railway.app",
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
 
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin || allowedOrigins.includes(origin)) {
