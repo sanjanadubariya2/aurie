@@ -68,11 +68,15 @@ const corsOptions = {
       "http://127.0.0.1:5175",
       "http://127.0.0.1:3000",
       "https://aurie-production.up.railway.app",
+      "https://aurie-frontend-diu9uetwk-sanjanadubariya2-5518s-projects.vercel.app",
       process.env.FRONTEND_URL
     ].filter(Boolean);
 
+    // Check if origin is in allowed list or is a Vercel preview deployment
+    const isVercelPreview = origin && origin.includes("vercel.app");
+    
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || isVercelPreview) {
       callback(null, true);
     } else {
       console.warn(`⚠️  CORS: Origin not allowed: ${origin}`);
