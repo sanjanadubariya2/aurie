@@ -507,8 +507,13 @@ router.post("/send-phone-otp", async (req, res) => {
     // Send SMS asynchronously (don't block response)
     console.log("📱 [SMS] Sending SMS to", phone);
     sendOTPSMS(phone, phoneOTP)
-      .then(result => console.log("📱 [SMS] Result:", result))
-      .catch(err => console.error("📱 [SMS] Error:", err.message));
+      .then(result => {
+        console.log("📱 [SMS] Result:", result);
+        if (!result.success && !result.demo) {
+          console.error("📱 [SMS] Failed to send:", result.error);
+        }
+      })
+      .catch(err => console.error("📱 [SMS] Error:", err));
 
     // Update user phone
     try {
@@ -519,8 +524,7 @@ router.post("/send-phone-otp", async (req, res) => {
     }
 
     // Return response immediately (SMS sending in background)
-    const response = { success: true, msg: "OTP sent to phone" };
-    res.json(response);
+    res.json({ success: true, msg: "OTP sent to phone. Check your SMS." });
   } catch (err) {
     console.error("❌ [Phone OTP Error]", err.message);
     console.error("Stack:", err.stack);
