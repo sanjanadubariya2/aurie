@@ -136,16 +136,19 @@ router.post("/signup", async (req, res) => {
     }
 
     console.log("✅ OTP stored in database");
-    const emailResult = await sendOTPEmail(email, emailOTP);
-    console.log("Email result:", emailResult);
+    
+    // Send email asynchronously (don't block response)
+    sendOTPEmail(email, emailOTP)
+      .then(result => console.log("Email result:", result))
+      .catch(err => console.error("Email send error:", err.message));
 
     console.log(`✅ Signup successful for ${email}`);
     const response = {
       success: true,
       user: { id: userRef.id, name, email },
       token,
-      msg: emailResult.success ? "Signup successful. Check email for OTP." : "Signup successful but email may not have been sent. Try resending.",
-      demo: emailResult?.demo,
+      msg: "Signup successful. OTP sent to email.",
+      demo: false,
     };
     
     // Include OTP for demo mode
@@ -501,15 +504,11 @@ router.post("/send-phone-otp", async (req, res) => {
       console.warn("⚠️  Failed to save OTP in DB, continuing anyway...");
     }
 
-    // Send SMS
+    // Send SMS asynchronously (don't block response)
     console.log("📱 [SMS] Sending SMS to", phone);
-    const smsResult = await sendOTPSMS(phone, phoneOTP);
-    console.log("📱 [SMS] Result:", smsResult);
-
-    if (!smsResult.success) {
-      console.error("❌ [SMS] Failed:", smsResult);
-      return res.status(500).json({ error: "Failed to send SMS: " + smsResult.message });
-    }
+    sendOTPSMS(phone, phoneOTP)
+      .then(result => console.log("📱 [SMS] Result:", result))
+      .catch(err => console.error("📱 [SMS] Error:", err.message));
 
     // Update user phone
     try {
@@ -519,12 +518,8 @@ router.post("/send-phone-otp", async (req, res) => {
       console.warn("⚠️  Failed to update user phone in DB");
     }
 
-    // Include OTP in response for demo/test mode
-    const response = { success: true, msg: "OTP sent to phone", demo: smsResult.demo };
-    if (smsResult.demo) {
-      response.demoOTP = phoneOTP;
-      response.demoMsg = `[DEMO MODE] OTP: ${phoneOTP}`;
-    }
+    // Return response immediately (SMS sending in background)
+    const response = { success: true, msg: "OTP sent to phone" };
     res.json(response);
   } catch (err) {
     console.error("❌ [Phone OTP Error]", err.message);
