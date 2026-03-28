@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        div { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: white; }
+        .error { color: #d9534f; border: 1px solid #d9534f; }
+        .success { color: #5cb85c; border: 1px solid #5cb85c; }
+        .info { color: #5bc0de; border: 1px solid #5bc0de; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; width: 200px; }
+        h1 { color: #333; }
+        h2 { color: #666; margin-top: 0; }
+        .step { background: #f9f9f9; border-left: 4px solid #007bff; }
+        .log { background: #f5f5f5; padding: 10px; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Email OTP Verification Test</h1>
+        
+        <div class="step">
+            <h2>Step 1: Sign Up with Email</h2>
+            <input type="text" id="name" placeholder="Full Name" value="Test User">
+            <input type="email" id="email" placeholder="Email" value="test@example.com">
+            <input type="password" id="password" placeholder="Password" value="password123">
+            <button onclick="testSignup()">Sign Up</button>
+            <div id="signup-result"></div>
+        </div>
+        
+        <div class="step">
+            <h2>Step 2: Check System Logs</h2>
+            <p>When you sign up, the backend will:</p>
+            <ul>
+                <li>Generate a random 6-digit OTP</li>
+                <li>Save OTP to database with 10-minute expiry</li>
+                <li>Send OTP to your email via Gmail SMTP</li>
+            </ul>
+            <p><strong>📧 OTP Location:</strong> Check your email inbox (or spam folder) for the verification code</p>
+            <p><strong>🔍 Backend Logs:</strong> Look for "✅ Email sent:" message in terminal</p>
+        </div>
+
+        <div class="step">
+            <h2>Step 3: Verify Email with OTP</h2>
+            <p>After signing up, you'll receive a 6-digit code in your email</p>
+            <input type="text" id="otp" placeholder="6-digit OTP" maxlength="6">
+            <button onclick="testVerifyEmail()">Verify Email</button>
+            <div id="verify-result"></div>
+        </div>
+
+        <div class="step">
+            <h2>Step 4: Resend OTP</h2>
+            <p>If you didn't receive the OTP, click to resend:</p>
+            <button onclick="testResendOTP()">Resend OTP to Email</button>
+            <div id="resend-result"></div>
+        </div>
+
+        <div>
+            <h2>📋 API Endpoints Summary</h2>
+            <table border="1" cellpadding="10" cellspacing="0" style="width: 100%; border-collapse: collapse;">
+                <tr style="background: #f5f5f5;">
+                    <th>Endpoint</th>
+                    <th>Method</th>
+                    <th>Purpose</th>
+                    <th>Authentication</th>
+                </tr>
+                <tr>
+                    <td>/auth/signup</td>
+                    <td>POST</td>
+                    <td>Register new user & send email OTP</td>
+                    <td>None</td>
+                </tr>
+                <tr>
+                    <td>/auth/send-email-otp</td>
+                    <td>POST</td>
+                    <td>Resend email OTP</td>
+                    <td>JWT Token</td>
+                </tr>
+                <tr>
+                    <td>/auth/verify-email-otp</td>
+                    <td>POST</td>
+                    <td>Verify OTP and mark email as verified</td>
+                    <td>JWT Token</td>
+                </tr>
+            </table>
+        </div>
+
+        <div>
+            <h2>📊 Test Response Logs</h2>
+            <div id="logs" class="log"></div>
+            <button onclick="clearLogs()" style="margin-top: 10px;">Clear Logs</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:5000/api';
+        let currentToken = localStorage.getItem('testToken') || null;
+        let currentUserId = localStorage.getItem('testUserId') || null;
+
+        function log(msg, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `[${timestamp}] ${msg}`;
+            logsDiv.appendChild(entry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        async function testSignup() {
+            try {
+                const name = document.getElementById('name').value;
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                
+                if (!name || !email || !password) {
+                    log('❌ Please fill all fields', 'error');
+                    return;
+                }
+
+                log(`📤 Sending signup request for ${email}...`, 'info');
+                
+                const response = await fetch(API_BASE + '/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentToken = data.token;
+                    currentUserId = data.user.id;
+                    localStorage.setItem('testToken', currentToken);
+                    localStorage.setItem('testUserId', currentUserId);
+                    
+                    log(`✅ Signup successful!`, 'success');
+                    log(`📧 OTP sent to ${email}`, 'info');
+                    log(`🔑 Token saved: ${currentToken.substring(0, 20)}...`, 'info');
+                    
+                    document.getElementById('signup-result').innerHTML = 
+                        `<span class="success"><strong>✅ Signup Successful!</strong><br>
+                        User: ${data.user.name}<br>
+                        Email: ${data.user.email}<br>
+                        Message: ${data.msg}<br>
+                        <br>
+                        ⏳ Check your email for a 6-digit OTP code (expires in 10 minutes)</span>`;
+                } else {
+                    log(`❌ Signup failed: ${data.error}`, 'error');
+                    document.getElementById('signup-result').innerHTML = `<span class="error">❌ ${data.error}</span>`;
+                }
+            } catch (err) {
+                log(`❌ Error: ${err.message}`, 'error');
+                document.getElementById('signup-result').innerHTML = `<span class="error">❌ ${err.message}</span>`;
+            }
+        }
+        
+        async function testVerifyEmail() {
+            try {
+                const otp = document.getElementById('otp').value;
+                
+                if (!otp || otp.length !== 6) {
+                    log('❌ Please enter a valid 6-digit OTP', 'error');
+                    return;
+                }
+
+                if (!currentToken) {
+                    log('❌ No token found. Please signup first.', 'error');
+                    return;
+                }
+
+                log(`📤 Verifying OTP: ${otp}...`, 'info');
+                
+                const response = await fetch(API_BASE + '/auth/verify-email-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({ otp })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success || data.msg) {
+                    log(`✅ Email verified successfully!`, 'success');
+                    document.getElementById('verify-result').innerHTML = 
+                        `<span class="success"><strong>✅ Email Verified!</strong><br>
+                        Your email is now verified and your account is activated.</span>`;
+                } else {
+                    log(`❌ Verification failed: ${data.error}`, 'error');
+                    document.getElementById('verify-result').innerHTML = 
+                        `<span class="error">❌ ${data.error}</span>`;
+                }
+            } catch (err) {
+                log(`❌ Error: ${err.message}`, 'error');
+                document.getElementById('verify-result').innerHTML = `<span class="error">❌ ${err.message}</span>`;
+            }
+        }
+
+        async function testResendOTP() {
+            try {
+                if (!currentToken) {
+                    log('❌ No token found. Please signup first.', 'error');
+                    return;
+                }
+
+                log(`📤 Requesting resend OTP...`, 'info');
+                
+                const response = await fetch(API_BASE + '/auth/send-email-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success || data.msg) {
+                    log(`✅ OTP resent to your email!`, 'success');
+                    document.getElementById('resend-result').innerHTML = 
+                        `<span class="success"><strong>✅ OTP Resent!</strong><br>
+                        Check your email for the new OTP code.<br>
+                        ${data.msg || 'A new 6-digit code has been sent.'}</span>`;
+                } else {
+                    log(`❌ Resend failed: ${data.error}`, 'error');
+                    document.getElementById('resend-result').innerHTML = 
+                        `<span class="error">❌ ${data.error}</span>`;
+                }
+            } catch (err) {
+                log(`❌ Error: ${err.message}`, 'error');
+                document.getElementById('resend-result').innerHTML = `<span class="error">❌ ${err.message}</span>`;
+            }
+        }
+
+        // Load saved token if exists
+        window.onload = function() {
+            if (currentToken) {
+                log(`✅ Found saved token from previous signup`, 'info');
+            }
+        };
+    </script>
+</body>
+</html>
