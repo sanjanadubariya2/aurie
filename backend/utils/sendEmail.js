@@ -1,59 +1,67 @@
-import sgMail from "@sendgrid/mail";
+import nodemailer from "nodemailer";
 
 // ============ EMAIL CONFIGURATION ============
-const initializeSendGrid = () => {
-  const apiKey = process.env.SENDGRID_API_KEY;
-  if (!apiKey) {
-    console.error("❌ SENDGRID_API_KEY not configured in environment variables");
-    console.error("📖 Get free API key from: https://sendgrid.com/signup");
+let transporter = null;
+let emailReady = false;
+
+const initializeGmail = () => {
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
+
+  if (!emailUser || !emailPass) {
+    console.error("❌ EMAIL_USER or EMAIL_PASS not configured");
     return false;
   }
-  sgMail.setApiKey(apiKey);
-  console.log("✅ SendGrid configured and ready");
-  return true;
+
+  try {
+    transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: emailUser,
+        pass: emailPass,
+      },
+    });
+    console.log("✅ Gmail configured for email sending");
+    return true;
+  } catch (err) {
+    console.error("❌ Gmail configuration failed:", err.message);
+    return false;
+  }
 };
 
-let sendGridReady = false;
-
-// ============ SEND EMAIL WITH SENDGRID ============
+// ============ SEND EMAIL WITH GMAIL ============
 export const sendEmail = async (to, subject, html) => {
   try {
-    if (!sendGridReady) {
-      sendGridReady = initializeSendGrid();
+    if (!emailReady) {
+      emailReady = initializeGmail();
     }
 
-    if (!sendGridReady) {
-      throw new Error("SendGrid not configured - missing SENDGRID_API_KEY");
+    if (!emailReady) {
+      throw new Error("Gmail not configured - missing EMAIL_USER or EMAIL_PASS");
     }
-
-    const msg = {
-      to,
-      from: process.env.SENDGRID_FROM_EMAIL || "noreply@auriecandles.com",
-      subject,
-      html,
-    };
 
     console.log(`📧 [EMAIL] Sending to: ${to}`);
     console.log(`📧 [EMAIL] Subject: ${subject}`);
-    
-    const response = await sgMail.send(msg);
-    
+
+    const result = await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to,
+      subject,
+      html,
+    });
+
     console.log(`✅ [EMAIL] Sent successfully!`);
-    console.log(`✅ [EMAIL] Message ID: ${response[0].headers["x-message-id"]}`);
-    
+    console.log(`✅ [EMAIL] Message ID: ${result.messageId}`);
+
     return { success: true, message: "Email sent successfully" };
   } catch (err) {
     console.error("\n❌ [EMAIL] Sending failed!");
     console.error("❌ [EMAIL] Error:", err.message);
-    
-    if (err.response) {
-      console.error("❌ [EMAIL] Response:", err.response.body);
-    }
-    
-    return { 
-      success: false, 
+
+    return {
+      success: false,
       message: `Email delivery failed: ${err.message}`,
-      error: err.message 
+      error: err.message,
     };
   }
 };
@@ -74,7 +82,7 @@ export const sendOTPEmail = async (email, otp) => {
 
   console.log(`\n📧 [OTP] Generating email for: ${email}`);
   console.log(`📧 [OTP] Code: ${otp}`);
-  
+
   return sendEmail(email, "Aurie Candles - Email Verification", html);
 };
 
