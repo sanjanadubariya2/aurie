@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let db = null;
 let isFirebase = false;
+let initialized = false;
 
 export const initializeFirebase = async () => {
   try {
@@ -35,11 +36,15 @@ export const initializeFirebase = async () => {
       }
 
       console.log("🔥 Initializing Firebase Admin...");
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: serviceAccount.project_id,
-        databaseURL: process.env.FIREBASE_DATABASE_URL || ""
-      });
+      
+      // Check if Firebase is already initialized
+      if (!admin.apps.length) {
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+          projectId: serviceAccount.project_id,
+          databaseURL: process.env.FIREBASE_DATABASE_URL || ""
+        });
+      }
 
       console.log("✅ Firebase Admin initialized for project:", serviceAccount.project_id);
       db = admin.firestore();
