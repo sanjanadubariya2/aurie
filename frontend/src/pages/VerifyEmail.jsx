@@ -31,7 +31,8 @@ export default function VerifyEmail({ userId }) {
       return;
     }
 
-    if (!token) {
+    const currentToken = token || localStorage.getItem("token");
+    if (!currentToken) {
       setError("Session expired. Please signup again.");
       setTimeout(() => setRoute("signup"), 2000);
       return;
@@ -39,9 +40,9 @@ export default function VerifyEmail({ userId }) {
 
     try {
       setLoading(true);
-      console.log("Verifying OTP:", { otp, hasToken: !!token });
+      console.log("Verifying OTP:", { otp, hasToken: !!currentToken });
       
-      const res = await verifyEmailOtp(token, otp);
+      const res = await verifyEmailOtp(currentToken, otp);
       
       console.log("Verification response:", res);
       
@@ -66,7 +67,8 @@ export default function VerifyEmail({ userId }) {
   async function handleResendOTP() {
     setResendMessage("");
     
-    if (!token) {
+    const currentToken = token || localStorage.getItem("token");
+    if (!currentToken) {
       setResendMessage("❌ Session expired. Please signup again.");
       return;
     }
@@ -75,7 +77,7 @@ export default function VerifyEmail({ userId }) {
       setResendLoading(true);
       console.log("Resending OTP...");
       
-      const res = await sendEmailOtp(token);
+      const res = await sendEmailOtp(currentToken);
       
       console.log("Resend response:", res);
       

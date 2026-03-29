@@ -18,11 +18,13 @@ export default function PhoneVerification() {
   // Check if user is already phone verified - skip if so
   useEffect(() => {
     const checkAlreadyVerified = async () => {
-      if (!token) return;
+      // Get token from context OR localStorage fallback
+      const currentToken = token || localStorage.getItem("token");
+      if (!currentToken) return;
       
       try {
         console.log("🔍 Checking if user already phone verified...");
-        const response = await checkPhoneVerification(token);
+        const response = await checkPhoneVerification(currentToken);
         
         // If phone is already verified, go straight to transaction
         if (response.user?.phoneVerified) {
@@ -118,7 +120,8 @@ export default function PhoneVerification() {
       return;
     }
 
-    if (!token) {
+    const currentToken = token || localStorage.getItem("token");
+    if (!currentToken) {
       setError("Not logged in. Please login first.");
       return;
     }
@@ -126,9 +129,9 @@ export default function PhoneVerification() {
     try {
       setLoading(true);
       const cleanPhone = phone.replace(/\D/g, "");
-      console.log("📱 Sending phone OTP with token:", token.substring(0, 20) + "...");
+      console.log("📱 Sending phone OTP with token:", currentToken.substring(0, 20) + "...");
       
-      const response = await sendPhoneOtp(token, cleanPhone);
+      const response = await sendPhoneOtp(currentToken, cleanPhone);
 
       console.log("✅ OTP response:", response);
       
@@ -169,14 +172,15 @@ export default function PhoneVerification() {
       return;
     }
 
-    if (!token) {
+    const currentToken = token || localStorage.getItem("token");
+    if (!currentToken) {
       setError("Session expired. Please login again.");
       return;
     }
 
     try {
       setLoading(true);
-      const response = await verifyPhoneOtp(token, otp);
+      const response = await verifyPhoneOtp(currentToken, otp);
 
       console.log("✅ Verify response:", response);
 
@@ -202,7 +206,7 @@ export default function PhoneVerification() {
               state: shipping.state || ""
             };
             
-            const updateResponse = await updateUserProfile(token, addressData);
+            const updateResponse = await updateUserProfile(currentToken, addressData);
             if (!updateResponse.error) {
               console.log("✅ Address saved to Firestore");
             }
@@ -213,8 +217,8 @@ export default function PhoneVerification() {
         
         // Fetch fresh user data from backend to confirm verification
         try {
-          console.log("📱 Fetching fresh user data with token:", token?.substring(0, 20) + "...");
-          const userResponse = await checkPhoneVerification(token);
+          console.log("📱 Fetching fresh user data with token:", currentToken?.substring(0, 20) + "...");
+          const userResponse = await checkPhoneVerification(currentToken);
           console.log("✅ Fresh user data after verification:", userResponse);
           
           if (userResponse.user) {
