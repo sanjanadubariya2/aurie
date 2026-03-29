@@ -24,20 +24,32 @@ initializeFirebase();
 const app = express();
 const httpServer = createServer(app);
 
-// Initialize Socket.io
+// Initialize Socket.io with dynamic CORS for Vercel deployments
 const io = new SocketServer(httpServer, {
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:5175",
-      "http://localhost:3000",
-      "http://127.0.0.1:5173",
-      "http://127.0.0.1:5174",
-      "http://127.0.0.1:5175",
-      "http://127.0.0.1:3000",
-      process.env.FRONTEND_URL || "https://aurie-production.up.railway.app"
-    ],
+    origin: function(origin, callback) {
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "http://127.0.0.1:3000",
+        "https://aurie-frontend.vercel.app",
+        process.env.FRONTEND_URL || "https://aurie-production.up.railway.app"
+      ].filter(Boolean);
+
+      // Allow Vercel preview deployments
+      const isVercelPreview = origin && origin.includes("vercel.app");
+      
+      if (!origin || allowedOrigins.includes(origin) || isVercelPreview) {
+        callback(null, true);
+      } else {
+        callback(new Error("Socket.io CORS Error"));
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true
   }
