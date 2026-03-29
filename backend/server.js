@@ -38,7 +38,7 @@ const io = new SocketServer(httpServer, {
         "http://127.0.0.1:5175",
         "http://127.0.0.1:3000",
         "https://aurie-frontend.vercel.app",
-        process.env.FRONTEND_URL || "https://aurie-production.up.railway.app/api"
+        process.env.FRONTEND_URL || "https://aurie.onrender.com"
       ].filter(Boolean);
 
       // Allow Vercel preview deployments
@@ -80,7 +80,7 @@ const corsOptions = {
       "http://127.0.0.1:5174",
       "http://127.0.0.1:5175",
       "http://127.0.0.1:3000",
-      "https://aurie-production.up.railway.app",
+      "https://aurie.onrender.com",
       "https://aurie-frontend-diu9uetwk-sanjanadubariya2-5518s-projects.vercel.app",
       process.env.FRONTEND_URL
     ].filter(Boolean);
