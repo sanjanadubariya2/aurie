@@ -1,101 +1,53 @@
-import nodemailer from "nodemailer";
+import sgMail from "@sendgrid/mail";
 
 // ============ EMAIL CONFIGURATION ============
-let transporter = null;
-
-const getTransporter = () => {
-  if (!transporter) {
-    console.log(`\n📧 Email Configuration:`);
-    console.log(`   User: ${process.env.EMAIL_USER || "noreply@aurie.com"}`);
-    console.log(`   Password configured: ${!!process.env.EMAIL_PASS}`);
-    console.log(`   Service: Gmail SMTP\n`);
-
-    transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER || "noreply@aurie.com",
-        pass: process.env.EMAIL_PASS || "demo-password",
-      },
-      // ⏱️ TIMEOUT & CONNECTION FIXES
-      connectionTimeout: 10000,  // 10 seconds to connect
-      socketTimeout: 10000,      // 10 seconds for socket operations
-      pool: {
-        maxConnections: 5,       // Reuse connections
-        maxMessages: 100,        // Send 100 emails per connection
-        rateDelta: 1000,         // 1 second between emails
-        rateLimit: 5,            // 5 emails per second max
-      },
-      logger: false,
-      debug: false,
-    });
-
-    // Verify transporter connection (non-blocking)
-    transporter.verify((error, success) => {
-      if (error) {
-        console.error("❌ Email service verification failed:", error.message);
-        console.error("⚠️  Email sending may not work until credentials are fixed");
-        console.log("📖 Fix: See EMAIL_FIX_GUIDE.md for instructions");
-      } else {
-        console.log("✅ Email service ready to send emails");
-      }
-    });
+const initializeSendGrid = () => {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  if (!apiKey) {
+    console.error("❌ SENDGRID_API_KEY not configured in environment variables");
+    console.error("📖 Get free API key from: https://sendgrid.com/signup");
+    return false;
   }
-  return transporter;
+  sgMail.setApiKey(apiKey);
+  console.log("✅ SendGrid configured and ready");
+  return true;
 };
 
-// ============ RETRY LOGIC ============
-const sendWithRetry = async (mailOptions, maxRetries = 3, delayMs = 1000) => {
-  let lastError;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`📧 [EMAIL] Attempt ${attempt}/${maxRetries}: Sending to ${mailOptions.to}...`);
-      const transporter = getTransporter();
-      const result = await transporter.sendMail(mailOptions);
-      return { success: true, result, attempt };
-    } catch (err) {
-      lastError = err;
-      console.error(`❌ Attempt ${attempt} failed: ${err.message}`);
-      
-      if (attempt < maxRetries) {
-        const delay = delayMs * attempt; // Exponential backoff
-        console.log(`⏳ Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-  
-  throw lastError;
-};
+let sendGridReady = false;
 
-// ============ SEND EMAIL ============
+// ============ SEND EMAIL WITH SENDGRID ============
 export const sendEmail = async (to, subject, html) => {
   try {
-    const mailOptions = {
-      from: process.env.EMAIL_USER || "noreply@aurie.com",
+    if (!sendGridReady) {
+      sendGridReady = initializeSendGrid();
+    }
+
+    if (!sendGridReady) {
+      throw new Error("SendGrid not configured - missing SENDGRID_API_KEY");
+    }
+
+    const msg = {
       to,
+      from: process.env.SENDGRID_FROM_EMAIL || "noreply@auriecandles.com",
       subject,
       html,
     };
 
-    const { success, result, attempt } = await sendWithRetry(mailOptions);
+    console.log(`📧 [EMAIL] Sending to: ${to}`);
+    console.log(`📧 [EMAIL] Subject: ${subject}`);
     
-    console.log(`✅ [EMAIL] Sent successfully on attempt ${attempt}!`);
-    console.log(`✅ [EMAIL] Response: ${result.response}`);
-    console.log(`✅ [EMAIL] Message ID: ${result.messageId}`);
+    const response = await sgMail.send(msg);
+    
+    console.log(`✅ [EMAIL] Sent successfully!`);
+    console.log(`✅ [EMAIL] Message ID: ${response[0].headers["x-message-id"]}`);
     
     return { success: true, message: "Email sent successfully" };
   } catch (err) {
-    console.error("\n❌ [EMAIL] Sending failed after retries!");
+    console.error("\n❌ [EMAIL] Sending failed!");
     console.error("❌ [EMAIL] Error:", err.message);
-    console.error("❌ [EMAIL] Code:", err.code);
-    
-    if (err.message.includes("Username and Password not accepted")) {
-      console.error("❌ [EMAIL] Gmail credentials invalid - check .env EMAIL_USER and EMAIL_PASS");
-    }
     
     if (err.response) {
-      console.error("❌ [EMAIL] SMTP Response:", err.response);
+      console.error("❌ [EMAIL] Response:", err.response.body);
     }
     
     return { 
