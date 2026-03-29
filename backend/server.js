@@ -38,7 +38,7 @@ const io = new SocketServer(httpServer, {
         "http://127.0.0.1:5175",
         "http://127.0.0.1:3000",
         "https://aurie-frontend.vercel.app",
-        process.env.FRONTEND_URL || "https://aurie-production.up.railway.app"
+        process.env.FRONTEND_URL || "https://aurie-production.up.railway.app/api"
       ].filter(Boolean);
 
       // Allow Vercel preview deployments
