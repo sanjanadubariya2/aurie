@@ -3,6 +3,10 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, ".env") });
+
 import { initializeFirebase, isFirebaseActive } from "./config/firebase.js";
 import { createServer } from "http";
 import { Server as SocketServer } from "socket.io";
@@ -13,9 +17,6 @@ import authRoutes from "./routes/authRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, ".env") });
 
 // Initialize Firebase/Mock DB
 initializeFirebase();

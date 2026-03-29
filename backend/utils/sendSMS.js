@@ -1,30 +1,49 @@
 import twilio from "twilio";
 
 // ============ SMS CONFIGURATION ============
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const fromPhone = process.env.TWILIO_PHONE_NUMBER;
-
 let client = null;
 let twilioReady = false;
+let initialized = false;
+let fromPhone = null;
 
-// Initialize Twilio
-if (accountSid && authToken && fromPhone && accountSid !== "demo" && accountSid.startsWith("AC")) {
-  try {
-    client = twilio(accountSid, authToken);
-    twilioReady = true;
-    console.log("✅ Twilio SMS service initialized");
-  } catch (err) {
-    console.warn("⚠️  Twilio initialization failed:", err.message);
-    console.log("    Using Demo Mode for SMS");
+// Lazy initialization function
+const initializeTwilio = () => {
+  if (initialized) return;
+  initialized = true;
+  
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  fromPhone = process.env.TWILIO_PHONE_NUMBER;
+
+  // Debug: Log environment variables
+  console.log("📱 Twilio Initialization Debug:");
+  console.log("  accountSid exists:", !!accountSid, accountSid ? accountSid.substring(0, 5) + "..." : "MISSING");
+  console.log("  authToken exists:", !!authToken, authToken ? authToken.substring(0, 5) + "..." : "MISSING");
+  console.log("  fromPhone exists:", !!fromPhone, fromPhone || "MISSING");
+
+  // Initialize Twilio
+  if (accountSid && authToken && fromPhone && accountSid !== "demo" && accountSid.startsWith("AC")) {
+    try {
+      client = twilio(accountSid, authToken);
+      twilioReady = true;
+      console.log("✅ Twilio SMS service initialized");
+    } catch (err) {
+      console.warn("⚠️  Twilio initialization failed:", err.message);
+      console.log("    Using Demo Mode for SMS");
+    }
+  } else {
+    console.log("ℹ️  Twilio not configured - Using Demo Mode");
+    console.log(`    (Check TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)`);
   }
-} else {
-  console.log("ℹ️  Twilio not configured - Using Demo Mode");
-  console.log(`    (Check TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)`);
-}
+};
 
 // ============ SEND SMS ============
 export const sendSMS = async (phoneNumber, message) => {
+  // Initialize on first call
+  if (!initialized) {
+    initializeTwilio();
+  }
+
   try {
     // Demo mode if Twilio not configured
     if (!twilioReady || !client) {

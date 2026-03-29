@@ -5,7 +5,6 @@ import { fileURLToPath } from "url";
 import { MockDB } from "./mockDb.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, ".env") });
 
 let db = null;
 let isFirebase = false;
