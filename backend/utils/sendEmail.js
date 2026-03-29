@@ -16,9 +16,20 @@ const getTransporter = () => {
         user: process.env.EMAIL_USER || "noreply@aurie.com",
         pass: process.env.EMAIL_PASS || "demo-password",
       },
+      // ⏱️ TIMEOUT & CONNECTION FIXES
+      connectionTimeout: 10000,  // 10 seconds to connect
+      socketTimeout: 10000,      // 10 seconds for socket operations
+      pool: {
+        maxConnections: 5,       // Reuse connections
+        maxMessages: 100,        // Send 100 emails per connection
+        rateDelta: 1000,         // 1 second between emails
+        rateLimit: 5,            // 5 emails per second max
+      },
+      logger: false,
+      debug: false,
     });
 
-    // Verify transporter connection
+    // Verify transporter connection (non-blocking)
     transporter.verify((error, success) => {
       if (error) {
         console.error("❌ Email service verification failed:", error.message);
@@ -32,14 +43,34 @@ const getTransporter = () => {
   return transporter;
 };
 
+// ============ RETRY LOGIC ============
+const sendWithRetry = async (mailOptions, maxRetries = 3, delayMs = 1000) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`📧 [EMAIL] Attempt ${attempt}/${maxRetries}: Sending to ${mailOptions.to}...`);
+      const transporter = getTransporter();
+      const result = await transporter.sendMail(mailOptions);
+      return { success: true, result, attempt };
+    } catch (err) {
+      lastError = err;
+      console.error(`❌ Attempt ${attempt} failed: ${err.message}`);
+      
+      if (attempt < maxRetries) {
+        const delay = delayMs * attempt; // Exponential backoff
+        console.log(`⏳ Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError;
+};
+
 // ============ SEND EMAIL ============
 export const sendEmail = async (to, subject, html) => {
   try {
-    const transporter = getTransporter();
-    
-    console.log(`\n📧 [EMAIL] Sending to: ${to}`);
-    console.log(`📧 [EMAIL] Subject: ${subject}`);
-    
     const mailOptions = {
       from: process.env.EMAIL_USER || "noreply@aurie.com",
       to,
@@ -47,19 +78,20 @@ export const sendEmail = async (to, subject, html) => {
       html,
     };
 
-    const result = await transporter.sendMail(mailOptions);
-    console.log("✅ [EMAIL] Sent successfully!");
-    console.log("✅ [EMAIL] Response:", result.response);
-    console.log("✅ [EMAIL] Message ID:", result.messageId);
+    const { success, result, attempt } = await sendWithRetry(mailOptions);
+    
+    console.log(`✅ [EMAIL] Sent successfully on attempt ${attempt}!`);
+    console.log(`✅ [EMAIL] Response: ${result.response}`);
+    console.log(`✅ [EMAIL] Message ID: ${result.messageId}`);
+    
     return { success: true, message: "Email sent successfully" };
   } catch (err) {
-    console.error("\n❌ [EMAIL] Sending failed!");
+    console.error("\n❌ [EMAIL] Sending failed after retries!");
     console.error("❌ [EMAIL] Error:", err.message);
     console.error("❌ [EMAIL] Code:", err.code);
     
     if (err.message.includes("Username and Password not accepted")) {
       console.error("❌ [EMAIL] Gmail credentials invalid - check .env EMAIL_USER and EMAIL_PASS");
-      console.error("📖 Fix: See EMAIL_FIX_GUIDE.md for instructions");
     }
     
     if (err.response) {
