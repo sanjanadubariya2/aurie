@@ -11,9 +11,10 @@ export const initSocket = () => {
   }
 
   isInitializing = true;
-  console.log('🔧 Initializing Socket.io connection to http://localhost:5000...');
+  const socketUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  console.log('🔧 Initializing Socket.io connection to', socketUrl);
   
-  socket = io('http://localhost:5000', {
+  socket = io(socketUrl, {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,

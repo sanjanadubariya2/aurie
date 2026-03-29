@@ -51,8 +51,9 @@ export function AppProvider({ children }) {
     // Set up Socket.io listener for real-time product updates
     let socket;
     try {
-      console.log("🔌 Connecting to Socket.io...");
-      socket = io("http://127.0.0.1:5000", {
+      const socketUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+      console.log("🔌 Connecting to Socket.io at:", socketUrl);
+      socket = io(socketUrl, {
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
