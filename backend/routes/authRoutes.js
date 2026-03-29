@@ -148,14 +148,7 @@ router.post("/signup", async (req, res) => {
       user: { id: userRef.id, name, email },
       token,
       msg: "Signup successful. OTP sent to email.",
-      demo: false,
     };
-    
-    // Include OTP for demo mode
-    if (emailResult?.demo) {
-      response.demoOTP = emailOTP;
-      response.demoMsg = `[DEMO MODE] OTP: ${emailOTP}`;
-    }
     
     res.json(response);
   } catch (err) {
