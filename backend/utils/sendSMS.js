@@ -9,7 +9,7 @@ let client = null;
 let twilioReady = false;
 
 // Initialize Twilio
-if (accountSid && authToken && fromPhone && accountSid !== "demo" && !accountSid.startsWith("AC")) {
+if (accountSid && authToken && fromPhone && accountSid !== "demo" && accountSid.startsWith("AC")) {
   try {
     client = twilio(accountSid, authToken);
     twilioReady = true;
