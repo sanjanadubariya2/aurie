@@ -138,9 +138,15 @@ router.post("/signup", async (req, res) => {
     console.log("✅ OTP stored in database");
     
     // Send email asynchronously (don't block response)
+    console.log(`📧 Sending OTP email to ${email}...`);
     sendOTPEmail(email, emailOTP)
-      .then(result => console.log("Email result:", result))
-      .catch(err => console.error("Email send error:", err.message));
+      .then(result => {
+        console.log("✅ Email sent:", result);
+      })
+      .catch(err => {
+        console.error("❌ Email send failed:", err.message);
+        console.error("Error details:", err);
+      });
 
     console.log(`✅ Signup successful for ${email}`);
     const response = {
