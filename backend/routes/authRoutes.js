@@ -343,21 +343,24 @@ router.post("/send-email-otp", async (req, res) => {
         createdAt: new Date(),
       });
     } catch (dbErr) {
-      console.warn("⚠️  Failed to save OTP in DB, continuing anyway...");
+      console.warn("⚠️  Failed to save OTP in DB");
+      return res.status(500).json({ error: "Failed to save OTP. Please try again." });
     }
 
-    const emailResult = await sendOTPEmail(user.email, emailOTP);
-
-    // Include OTP in response for demo/test mode
-    const response = { success: true, msg: "OTP sent to email", demo: emailResult?.demo };
-    if (emailResult?.demo) {
-      response.demoOTP = emailOTP;
-      response.demoMsg = `[DEMO MODE] OTP: ${emailOTP}`;
+    // Send email and wait for result
+    try {
+      const emailResult = await sendOTPEmail(user.email, emailOTP);
+      res.json({ success: true, msg: "OTP sent to email" });
+    } catch (emailErr) {
+      console.error("❌ Email OTP send failed:", emailErr.message);
+      return res.status(500).json({ 
+        error: "Failed to send OTP: " + emailErr.message,
+        hint: "Check Email configuration: EMAIL_USER, EMAIL_PASS"
+      });
     }
-    res.json(response);
   } catch (err) {
     console.error("Send email OTP error:", err.message);
-    res.status(500).json({ error: "Failed to send OTP" });
+    res.status(500).json({ error: "Failed to send OTP: " + err.message });
   }
 });
 
@@ -421,8 +424,12 @@ router.post("/verify-email-otp", async (req, res) => {
       
       console.log("✅ [Verify Email] OTP is valid!");
     } catch (queryErr) {
-      console.warn("⚠️  Query error:", queryErr.message);
-      console.log("⚠️  Skipping OTP validation due to DB error, marking as verified anyway");
+      console.error("❌ [Verify Email] Query error - cannot validate OTP:", queryErr.message);
+      // SECURITY FIX: Return error instead of bypassing verification
+      return res.status(500).json({ 
+        error: "Verification service temporarily unavailable. Please try again.",
+        details: "Database connection failed"
+      });
     }
 
     // Mark email as verified
@@ -500,19 +507,9 @@ router.post("/send-phone-otp", async (req, res) => {
       });
       console.log("✅ [Phone OTP] Saved to database");
     } catch (dbErr) {
-      console.warn("⚠️  Failed to save OTP in DB, continuing anyway...");
+      console.warn("⚠️  Failed to save OTP in DB");
+      return res.status(500).json({ error: "Failed to save OTP. Please try again." });
     }
-
-    // Send SMS asynchronously (don't block response)
-    console.log("📱 [SMS] Sending SMS to", phone);
-    sendOTPSMS(phone, phoneOTP)
-      .then(result => {
-        console.log("📱 [SMS] Result:", result);
-        if (!result.success && !result.demo) {
-          console.error("📱 [SMS] Failed to send:", result.error);
-        }
-      })
-      .catch(err => console.error("📱 [SMS] Error:", err));
 
     // Update user phone
     try {
@@ -520,10 +517,23 @@ router.post("/send-phone-otp", async (req, res) => {
       console.log("✅ [Phone OTP] User phone updated");
     } catch (updateErr) {
       console.warn("⚠️  Failed to update user phone in DB");
+      return res.status(500).json({ error: "Failed to update phone. Please try again." });
     }
 
-    // Return response immediately (SMS sending in background)
-    res.json({ success: true, msg: "OTP sent to phone. Check your SMS." });
+    // CRITICAL: Wait for SMS to complete BEFORE responding
+    console.log("📱 [SMS] Sending SMS to", phone);
+    try {
+      const smsResult = await sendOTPSMS(phone, phoneOTP);
+      console.log("✅ [SMS] Successfully sent:", smsResult.sid);
+      return res.json({ success: true, msg: "OTP sent to phone. Check your SMS.", smsId: smsResult.sid });
+    } catch (smsErr) {
+      console.error("❌ [SMS] Failed to send SMS:", smsErr.message);
+      // SMS failed - return error to frontend so user knows
+      return res.status(500).json({ 
+        error: "Failed to send SMS: " + smsErr.message,
+        hint: "Check that Twilio is configured: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER"
+      });
+    }
   } catch (err) {
     console.error("❌ [Phone OTP Error]", err.message);
     console.error("Stack:", err.stack);
@@ -596,8 +606,12 @@ router.post("/verify-phone-otp", async (req, res) => {
       
       console.log("✅ [Verify Phone] OTP is valid!");
     } catch (queryErr) {
-      console.warn("⚠️  Query error:", queryErr.message);
-      console.log("⚠️  Skipping OTP validation due to DB error");
+      console.error("❌ [Verify Phone] Query error - cannot validate OTP:", queryErr.message);
+      // SECURITY FIX: Return error instead of bypassing verification
+      return res.status(500).json({ 
+        error: "Verification service temporarily unavailable. Please try again.",
+        details: "Database connection failed"
+      });
     }
 
     // Mark phone as verified and save the phone number

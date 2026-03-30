@@ -1,15 +1,18 @@
 import nodemailer from "nodemailer";
+import { logger } from "./logger.js";
 
 // ============ EMAIL CONFIGURATION ============
 let transporter = null;
 let emailReady = false;
+let initError = null;
 
 const initializeGmail = () => {
   const emailUser = process.env.EMAIL_USER;
   const emailPass = process.env.EMAIL_PASS;
 
   if (!emailUser || !emailPass) {
-    console.error("❌ EMAIL_USER or EMAIL_PASS not configured");
+    initError = "Gmail not configured - missing EMAIL_USER or EMAIL_PASS environment variables";
+    logger.email(initError, "error");
     return false;
   }
 
@@ -21,10 +24,11 @@ const initializeGmail = () => {
         pass: emailPass,
       },
     });
-    console.log("✅ Gmail configured for email sending");
+    logger.email("Gmail configured successfully", "info");
     return true;
   } catch (err) {
-    console.error("❌ Gmail configuration failed:", err.message);
+    initError = `Gmail configuration failed: ${err.message}`;
+    logger.email(initError, "error");
     return false;
   }
 };
@@ -37,11 +41,16 @@ export const sendEmail = async (to, subject, html) => {
     }
 
     if (!emailReady) {
-      throw new Error("Gmail not configured - missing EMAIL_USER or EMAIL_PASS");
+      const error = initError || "Gmail not configured";
+      logger.email("Email send failed - service not configured", "error", { to, subject });
+      throw new Error(error);
     }
 
-    console.log(`📧 [EMAIL] Sending to: ${to}`);
-    console.log(`📧 [EMAIL] Subject: ${subject}`);
+    logger.email(`Sending email to ${to}`, "info", { 
+      to,
+      subject,
+      htmlPreview: html.substring(0, 100)
+    });
 
     const result = await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -50,19 +59,20 @@ export const sendEmail = async (to, subject, html) => {
       html,
     });
 
-    console.log(`✅ [EMAIL] Sent successfully!`);
-    console.log(`✅ [EMAIL] Message ID: ${result.messageId}`);
+    logger.email("Email sent successfully", "info", { 
+      to,
+      messageId: result.messageId
+    });
 
-    return { success: true, message: "Email sent successfully" };
+    return { success: true, message: "Email sent successfully", messageId: result.messageId };
   } catch (err) {
-    console.error("\n❌ [EMAIL] Sending failed!");
-    console.error("❌ [EMAIL] Error:", err.message);
-
-    return {
-      success: false,
-      message: `Email delivery failed: ${err.message}`,
-      error: err.message,
-    };
+    logger.email("Email send failed", "error", { 
+      to,
+      subject,
+      error: err.message
+    });
+    
+    throw err;
   }
 };
 
@@ -80,10 +90,15 @@ export const sendOTPEmail = async (email, otp) => {
     </div>
   `;
 
-  console.log(`\n📧 [OTP] Generating email for: ${email}`);
-  console.log(`📧 [OTP] Code: ${otp}`);
+  logger.email(`Sending OTP email to ${email}`, "info", { email, otp });
 
-  return sendEmail(email, "Aurie Candles - Email Verification", html);
+  try {
+    const result = await sendEmail(email, "Aurie Candles - Email Verification", html);
+    return result;
+  } catch (err) {
+    logger.email("Failed to send OTP email", "error", { email, error: err.message });
+    throw err;
+  }
 };
 
 // ============ SEND ORDER PLACED NOTIFICATION TO ADMIN ============
