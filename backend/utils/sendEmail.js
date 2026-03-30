@@ -36,6 +36,15 @@ const initializeGmail = () => {
         user: emailUser,
         pass: emailPass,
       },
+      tls: {
+        rejectUnauthorized: false, // Allow self-signed certificates
+      },
+      pool: {
+        maxConnections: 1,
+        maxMessages: 5,
+        rateDelta: 2000,
+        rateLimit: 5,
+      }
     });
     logger.email("Gmail configured successfully", "info", {
       emailUser,
@@ -66,10 +75,10 @@ export const sendEmail = async (to, subject, html) => {
       throw new Error(error);
     }
 
-    logger.email(`Sending email to ${to}`, "info", { 
+    logger.email(`Preparing to send email to ${to}`, "info", { 
       to,
       subject,
-      htmlPreview: html.substring(0, 100)
+      hasTransporter: !!transporter,
     });
 
     const result = await transporter.sendMail({
@@ -89,7 +98,9 @@ export const sendEmail = async (to, subject, html) => {
     logger.email("Email send failed", "error", { 
       to,
       subject,
-      error: err.message
+      error: err.message,
+      errorCode: err.code,
+      errorResponse: err.response?.toString() || "no response"
     });
     
     throw err;
