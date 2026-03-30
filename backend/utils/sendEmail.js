@@ -12,7 +12,20 @@ const initializeGmail = () => {
 
   if (!emailUser || !emailPass) {
     initError = "Gmail not configured - missing EMAIL_USER or EMAIL_PASS environment variables";
-    logger.email(initError, "error");
+    logger.email(initError, "error", {
+      hasUser: !!emailUser,
+      hasPass: !!emailPass,
+      userLength: emailUser?.length,
+      passLength: emailPass?.length,
+      hasSpaces: emailPass?.includes(" "),
+    });
+    return false;
+  }
+
+  // Check if EMAIL_PASS has spaces (common error)
+  if (emailPass.includes(" ")) {
+    initError = `Gmail configuration failed: EMAIL_PASS contains spaces. Remove all spaces from the app password. Current: "${emailPass}"`;
+    logger.email(initError, "error", { passHasSpaces: true });
     return false;
   }
 
@@ -24,11 +37,18 @@ const initializeGmail = () => {
         pass: emailPass,
       },
     });
-    logger.email("Gmail configured successfully", "info");
+    logger.email("Gmail configured successfully", "info", {
+      emailUser,
+      passLength: emailPass.length,
+    });
     return true;
   } catch (err) {
     initError = `Gmail configuration failed: ${err.message}`;
-    logger.email(initError, "error");
+    logger.email(initError, "error", {
+      error: err.message,
+      emailUser,
+      passLength: emailPass.length,
+    });
     return false;
   }
 };

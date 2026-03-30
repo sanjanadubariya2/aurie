@@ -353,9 +353,20 @@ router.post("/send-email-otp", async (req, res) => {
       res.json({ success: true, msg: "OTP sent to email" });
     } catch (emailErr) {
       console.error("❌ Email OTP send failed:", emailErr.message);
+      
+      // Provide specific troubleshooting hints based on error type
+      let hint = "Check Email configuration: EMAIL_USER, EMAIL_PASS";
+      if (emailErr.message.includes("contains spaces")) {
+        hint = "EMAIL_PASS has spaces - must remove all spaces from app password";
+      } else if (emailErr.message.includes("Authentication")) {
+        hint = "EMAIL_PASS is incorrect or app password not generated for this account";
+      } else if (emailErr.message.includes("timeout")) {
+        hint = "Gmail connection timeout - check internet or Gmail blocking the connection";
+      }
+      
       return res.status(500).json({ 
         error: "Failed to send OTP: " + emailErr.message,
-        hint: "Check Email configuration: EMAIL_USER, EMAIL_PASS"
+        hint
       });
     }
   } catch (err) {
